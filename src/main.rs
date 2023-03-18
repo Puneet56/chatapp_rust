@@ -1,38 +1,34 @@
-use rocket::{
-    http::Status,
-    serde::json::{serde_json::json, Value},
-};
+mod api;
 
-#[macro_use]
-extern crate rocket;
+use api::users::create_user;
 
-#[get("/")]
-fn index() -> String {
-    String::from("Hello world")
+use actix_web::{middleware::Logger, post, web, App, HttpResponse, HttpServer, Responder};
+
+#[post("/echo")]
+async fn echo(req_body: String) -> impl Responder {
+    HttpResponse::Ok().body(req_body)
 }
 
-#[get("/hello/<name>")]
-fn greet_name(name: Option<String>) -> String {
-    let greeting = match name {
-        Some(n) => n,
-        None => String::from("No name creature"),
-    };
-
-    format!("Hello {}", greeting)
+async fn manual_hello() -> impl Responder {
+    HttpResponse::Ok().body("Hey there!")
 }
 
-struct User {
-    name: String,
-}
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    std::env::set_var("RUST_LOG", "debug");
+    std::env::set_var("RUST_BACKTRACE", "1");
+    env_logger::init();
 
-#[get("/json")]
-fn get_json() -> Result<Value, Status> {
-    Ok(json!({
-        "name":"puneet"
-    }))
-}
-
-#[launch]
-fn rocket() -> _ {
-    rocket::build().mount("/", routes![index, greet_name, get_json])
+    HttpServer::new(|| {
+        let logger = Logger::default();
+        App::new()
+            .wrap(logger)
+            .service(create_user)
+            .service(api::say_hello)
+            .service(echo)
+            .route("/hey", web::get().to(manual_hello))
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
